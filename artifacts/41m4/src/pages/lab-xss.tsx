@@ -85,17 +85,17 @@ function scanCode(code: string): ScanFinding[] {
       fix: "Never pass user input to eval(). Use JSON.parse() for data, structured APIs for logic.",
     },
     {
-      re: /setTimeout\s*\(\s*[^,)]*[^'"][^,)]*,/g, sink: "setTimeout(string)", severity: "high",
+      re: /setTimeout\s*\(\s*['"]/g, sink: "setTimeout(string)", severity: "high",
       desc: "setTimeout with a string argument evaluates code like eval().",
       fix: "Pass a function reference instead: setTimeout(() => ..., delay).",
     },
     {
-      re: /setInterval\s*\(\s*[^,)]*[^'"][^,)]*,/g, sink: "setInterval(string)", severity: "high",
+      re: /setInterval\s*\(\s*['"]/g, sink: "setInterval(string)", severity: "high",
       desc: "setInterval with string argument is equivalent to eval().",
       fix: "Pass a function reference instead.",
     },
     {
-      re: /location\s*=|location\.href\s*=|location\.assign\s*\(/g, sink: "location redirect", severity: "high",
+      re: /(?:window|document|location)\s*\.\s*(?:location|href)\s*=|location\s*=|location\.href\s*=|location\.assign\s*\(/g, sink: "location redirect", severity: "high",
       desc: "Assigning to location with user input enables javascript: URI XSS.",
       fix: "Validate URL scheme is https:// or http:// before assigning.",
     },
@@ -121,14 +121,15 @@ function scanCode(code: string): ScanFinding[] {
     },
   ];
 
-  lines.forEach((line, idx) => {
-    patterns.forEach(({ re, sink, severity, desc, fix }) => {
-      const freshRe = new RegExp(re.source, re.flags);
-      if (freshRe.test(line)) {
+  for (let idx = 0; idx < lines.length; idx++) {
+    const line = lines[idx];
+    for (const { re, sink, severity, desc, fix } of patterns) {
+      re.lastIndex = 0;
+      if (re.test(line)) {
         findings.push({ line: idx + 1, sink, severity, desc, fix });
       }
-    });
-  });
+    }
+  }
 
   return findings;
 }

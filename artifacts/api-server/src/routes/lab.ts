@@ -1,6 +1,66 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request } from "express";
+import { db, labSessionsTable } from "@workspace/db";
+import { desc, eq, sql } from "drizzle-orm";
 
 const router: IRouter = Router();
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function recordLabAttempt(req: Request, labType: string, mode: string, payloadUsed: string, success: boolean): void {
+  const userId = null;
+  void db.insert(labSessionsTable).values({ userId, labType, mode, payloadUsed, success }).catch((err) => {
+    req.log?.warn?.({ err, labType, mode }, "Unable to record lab attempt");
+  });
+}
+
+function looksLikeXss(payload: string): boolean {
+  return /<\s*script|<\s*(img|svg|iframe|object|video|audio|math|input|select|details|body|meta|style|link)[^>]*|on\w+\s*=|javascript:|data:\s*text\/html|srcdoc\s*=|innerHTML|document\.cookie|document\.location|document\.write|document\.writeln|eval\(|new\s+Function\(|setTimeout\s*\(|setInterval\s*\(/i.test(payload);
+}
+
+function looksLikeSqli(payload: string): boolean {
+  return /('|--|\/\*|UNION|SELECT|OR\s+\d\s*=\s*\d|AND\s+\d\s*=\s*\d|1\s*=\s*1|SLEEP|BENCHMARK|WAITFOR|INFORMATION_SCHEMA|pg_sleep|DROP|XP_|EXEC|CONVERT\s*\(|CAST\s*\(|CHAR\(|SUBSTR\(|UPDATEXML|EXTRACTVALUE)/i.test(payload);
+}
+
+function normalizeRequestedFile(file: string): string {
+  const nullTerminated = file.split("\0")[0];
+  if (/^(php|data|file):/i.test(nullTerminated)) {
+    return nullTerminated;
+  }
+
+  const isAbsolute = nullTerminated.startsWith("/");
+  const parts = nullTerminated.split("/");
+  const normalizedParts: string[] = [];
+
+  for (const part of parts) {
+    if (!part || part === ".") continue;
+    if (part === "..") {
+      if (normalizedParts.length > 0) {
+        normalizedParts.pop();
+      } else if (!isAbsolute) {
+        normalizedParts.push("..");
+      }
+      continue;
+    }
+    normalizedParts.push(part);
+  }
+
+  const resolved = (isAbsolute ? "/" : "") + normalizedParts.join("/");
+  const fallback = resolved.replace(/^(?:\.\.\/)+/, "");
+
+  if (/etc\/passwd$/.test(fallback)) return "/etc/passwd";
+  if (/etc\/hosts$/.test(fallback)) return "/etc/hosts";
+  if (/proc\/self\/environ$/.test(fallback)) return "/proc/self/environ";
+  if (/proc\/self\/cmdline$/.test(fallback)) return "/proc/self/cmdline";
+  if (/config\.php$/.test(fallback)) return "../config.php";
+
+  return resolved;
+}
 
 // In-memory store for stored XSS lab (resets on restart by design)
 const storedComments: { id: number; username: string; body: string; ts: string }[] = [
@@ -32,6 +92,7 @@ const LAB_CSS = `
 // ─── Reflected XSS Target ────────────────────────────────────────────────────
 router.get("/lab/xss/reflected", (req, res): void => {
   const payload = String(req.query.payload ?? "");
+  if (payload) recordLabAttempt(req, "xss", "reflected", payload, looksLikeXss(payload));
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -53,8 +114,12 @@ router.get("/lab/xss/reflected", (req, res): void => {
       </div>
     </form>
     ${payload ? `<div class="result-box">
-      <div class="label">Results for:</div>
+      <div class="label">Search results for:</div>
       <div class="highlight">${payload}</div>
+    </div>
+    <div class="result-box" style="margin-top:14px;">
+      <div class="label">Query preview</div>
+      <div style="font-family:monospace;color:#ffffff;">SELECT * FROM products WHERE name LIKE '%${payload}%'</div>
     </div>` : `<div class="result-box"><span style="color:#00ff4155">// Waiting for input... inject a payload above //</span></div>`}
   </div>
 </body>
@@ -112,6 +177,7 @@ router.post("/lab/xss/stored", (req, res): void => {
   const body = String(req.body?.body || "").substring(0, 2000);
 
   if (body.trim()) {
+    recordLabAttempt(req, "xss", "stored", body, looksLikeXss(body));
     storedComments.push({
       id: commentId++,
       username,
@@ -155,8 +221,12 @@ router.get("/lab/xss/dom", (req, res): void => {
   <script>
     function render() {
       const hash = decodeURIComponent(location.hash.substring(1));
+      const output = document.getElementById('output');
+      if (!output) return;
+
       if (hash) {
-        document.getElementById('output').innerHTML = hash;
+        output.innerHTML = hash;
+        fetch('/api/lab/xss/dom/track?payload=' + encodeURIComponent(hash), { keepalive: true }).catch(() => {});
       }
     }
     window.addEventListener('hashchange', render);
@@ -174,6 +244,7 @@ router.get("/lab/xss/dom", (req, res): void => {
 // ─── SQLi Simulated Target ────────────────────────────────────────────────────
 router.get("/lab/sqli/search", (req, res): void => {
   const query = String(req.query.q ?? "");
+  if (query) recordLabAttempt(req, "sqli", "search", query, looksLikeSqli(query));
 
   const fakeUsers = [
     { id: 1, username: "alice", email: "alice@corp.local", role: "user" },
@@ -182,7 +253,11 @@ router.get("/lab/sqli/search", (req, res): void => {
   ];
 
   const isInjection =
-    /('|--|;|UNION|SELECT|OR\s+\d|1=1|DROP|INSERT|UPDATE|DELETE|SLEEP|BENCHMARK|XP_|EXEC)/i.test(query);
+    looksLikeSqli(query);
+
+  const isUnion = /UNION\s+(ALL\s+)?SELECT/i.test(query);
+  const isTime = /SLEEP\s*\(|pg_sleep\s*\(|WAITFOR\s+DELAY|BENCHMARK\s*\(/i.test(query);
+  const isError = /CONVERT\s*\(|CAST\s*\(|extractvalue\s*\(|updatexml\s*\(/i.test(query);
 
   const results = isInjection
     ? fakeUsers
@@ -222,7 +297,12 @@ router.get("/lab/sqli/search", (req, res): void => {
         <button type="submit">[EXECUTE]</button>
       </div>
     </form>
-    ${isInjection ? `<div class="injection-warn">[!] SQL INJECTION DETECTED — Full table dump returned: ${results.length} row(s)</div>` : ""}
+    ${isInjection ? `<div class="injection-warn">[!] SQL INJECTION DETECTED — ${isUnion ? "UNION projection accepted" : isTime ? "time-delay primitive confirmed" : isError ? "error-based leak simulated" : "predicate changed query logic"} — ${results.length} row(s)</div>` : ""}
+    ${isInjection ? `<div class="result-box">
+      <div class="label">Simulated DB telemetry</div>
+      <div>driver=postgresql | current_user=webapp_reader | database=training_crm</div>
+      <div>prepared_statements=false | waf=edge-ruleset-v2 | row_security=off</div>
+    </div>` : ""}
     <table>
       <thead><tr><th>ID</th><th>Username</th><th>Email</th><th>Role</th></tr></thead>
       <tbody>${rowsHtml || `<tr><td colspan="4" style="color:#00ff4133">No results found.</td></tr>`}</tbody>
@@ -273,6 +353,7 @@ router.post("/lab/csrf/transfer", (req, res): void => {
   const amount = parseInt(String(req.body?.amount || "0"), 10);
   const valid = !isNaN(amount) && amount > 0 && amount <= csrfBalance;
   if (valid) csrfBalance -= amount;
+  recordLabAttempt(req, "csrf", "bank-transfer", `to=${to};amount=${amount}`, valid);
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -302,8 +383,10 @@ const FAKE_FILES: Record<string, string> = {
 };
 
 router.get("/lab/lfi", (req, res): void => {
-  const file = String(req.query.file ?? "");
-  const content = file ? (FAKE_FILES[file] ?? `// File not found: ${file}`) : null;
+    const file = String(req.query.file ?? "");
+  const normalizedFile = file ? normalizeRequestedFile(file) : "";
+  const content = normalizedFile ? (FAKE_FILES[normalizedFile] ?? `// File not found: ${normalizedFile}`) : null;
+  if (file) recordLabAttempt(req, "lfi", "file-read", file, Boolean(FAKE_FILES[normalizedFile]));
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -324,10 +407,11 @@ router.get("/lab/lfi", (req, res): void => {
         <button type="submit">[READ FILE]</button>
       </div>
     </form>
+    ${normalizedFile ? `<div class="result-box"><div class="label">Resolved target</div><div style="font-family:monospace;color:#ffffff;">${normalizedFile.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div></div>` : ""}
     ${content !== null
       ? `<pre>${content.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>`
       : `<pre style="color:#00ff4144">// Enter a file path to read... try /etc/passwd //</pre>`}
-    <p style="color:#00ff4155;font-size:11px;margin-top:10px;">Hint: try /etc/passwd, /etc/hosts, /proc/self/environ, ../config.php</p>
+    <p style="color:#00ff4155;font-size:11px;margin-top:10px;">Hint: try /etc/passwd, /etc/hosts, /proc/self/environ, ../config.php, php://filter/convert.base64-encode/resource=index.php</p>
   </div>
 </body>
 </html>`;
@@ -335,6 +419,11 @@ router.get("/lab/lfi", (req, res): void => {
   res.setHeader("Content-Type", "text/html");
   res.setHeader("X-Frame-Options", "SAMEORIGIN");
   res.send(html);
+});
+
+router.post("/lab/csrf/reset", (req, res): void => {
+  csrfBalance = 10000;
+  res.json({ ok: true, balance: csrfBalance });
 });
 
 // ─── Payload API ─────────────────────────────────────────────────────────────
@@ -410,6 +499,183 @@ router.get("/lab/payloads", (req, res): void => {
 
 router.get("/lab/payloads/categories", (req, res): void => {
   res.json({ categories: Object.keys(PAYLOAD_DB) });
+});
+
+router.get("/lab/progress", async (req, res): Promise<void> => {
+  res.json({ labs: [], recent: [] });
+});
+
+// ─── DOM XSS Attempt Tracking ─────────────────────────────────────────────────
+router.get("/lab/xss/dom/track", (req, res): void => {
+  const payload = String(req.query.payload ?? "");
+  if (payload) {
+    recordLabAttempt(req, "xss", "dom", payload, looksLikeXss(payload));
+  }
+  res.json({ ok: true });
+});
+
+// ─── SSRF Realistic Simulation ───────────────────────────────────────────────
+const INTERNAL_SERVICES: Record<string, string> = {
+  "http://127.0.0.1:8080/admin": JSON.stringify({ service: "admin-panel", users: 428, role: "internal" }, null, 2),
+  "http://localhost:8080/admin": JSON.stringify({ service: "admin-panel", users: 428, role: "internal" }, null, 2),
+  "http://127.0.0.1:6379/": "-NOAUTH Authentication required.\n+redis_version:7.2.4\n+connected_clients:3",
+  "http://169.254.169.254/latest/meta-data/iam/security-credentials/": "training-role",
+  "http://169.254.169.254/latest/meta-data/iam/security-credentials/training-role": JSON.stringify({
+    AccessKeyId: "ASIA_TRAINING_ONLY",
+    SecretAccessKey: "redacted-training-secret",
+    Token: "session-token-for-lab",
+    Expiration: "2026-05-19T23:59:59Z",
+  }, null, 2),
+  "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token": JSON.stringify({
+    access_token: "ya29.training-token",
+    expires_in: 3599,
+    token_type: "Bearer",
+  }, null, 2),
+};
+
+function normalizeSsrfUrl(raw: string): { normalized: string; blocked: boolean; reason: string; bypass: boolean } {
+  const trimmed = raw.trim();
+  let normalized = trimmed;
+  let bypass = false;
+
+  try {
+    const rawAuthority = trimmed.match(/^[a-z][a-z0-9+.-]*:\/\/([^/?#]+)/i)?.[1] ?? "";
+    const rawHost = rawAuthority.split("@").pop()?.replace(/^\[/, "").replace(/\]$/, "").split(":")[0]?.toLowerCase() ?? "";
+    const parsed = new URL(trimmed);
+
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return { normalized: trimmed, blocked: true, reason: "unsupported URL scheme", bypass: false };
+    }
+
+    const numericBypass = /^(0x[0-9a-f]+|0[0-7.]+|2130706433)$/i.test(rawHost);
+    const ipv6Loopback = rawHost === "::1";
+
+    if (numericBypass || ipv6Loopback) {
+      normalized = `${parsed.protocol}//127.0.0.1${parsed.port ? `:${parsed.port}` : ""}${parsed.pathname}`;
+      bypass = true;
+    }
+
+    const blocked = /(^|\.)localhost$|^127\.|^10\.|^172\.(1[6-9]|2\d|3[0-1])\.|^192\.168\.|^::1$/i.test(rawHost) && !bypass;
+    return { normalized, blocked, reason: blocked ? "naive blocklist matched original host" : "request passed fetcher policy", bypass };
+  } catch {
+    return { normalized: trimmed, blocked: true, reason: "invalid URL", bypass: false };
+  }
+}
+
+router.get("/lab/ssrf/fetch", (req, res): void => {
+  const rawUrl = String(req.query.url ?? "");
+  const verdict = rawUrl ? normalizeSsrfUrl(rawUrl) : null;
+  const body = verdict && !verdict.blocked
+    ? (INTERNAL_SERVICES[verdict.normalized] ?? `HTTP/1.1 200 OK\ncontent-type: text/plain\n\nFetched external resource: ${verdict.normalized}`)
+    : null;
+  const success = Boolean(body && (/169\.254\.169\.254|metadata\.google|127\.0\.0\.1|localhost|0x7f000001|0177\.0\.0\.1|2130706433|::1|\[::1\]/i.test(rawUrl)));
+  if (rawUrl) recordLabAttempt(req, "ssrf", "server-fetch", rawUrl, success);
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><style>${LAB_CSS}
+  pre { background:#0d0d0d;border:1px solid #00ff4133;padding:12px;white-space:pre-wrap;word-break:break-word;margin-top:10px; }
+  .warn { color:#ff9900;border:1px solid #ff9900;padding:8px;margin-top:10px;background:#1a1000; }
+</style></head>
+<body>
+  <div class="banner">[!] INTENTIONALLY VULNERABLE — SSRF ENTERPRISE FETCHER</div>
+  <div class="section">
+    <h2>// SSRF — Webhook Preview Service //</h2>
+    <p style="color:#00ff4199;margin-bottom:12px;">Scenario: a SaaS app fetches customer webhooks server-side. It blocks obvious internal hosts before parsing canonical forms.</p>
+    <form method="GET" action="">
+      <div class="label">Webhook URL</div>
+      <div class="row"><input name="url" value="${escapeHtml(rawUrl)}" placeholder="https://example.com/webhook" style="flex:1" /><button>[FETCH]</button></div>
+    </form>
+    ${verdict ? `<div class="${verdict.blocked ? "warn" : "result-box"}">
+      <div class="label">Policy decision</div>
+      <div>${escapeHtml(verdict.reason)}${verdict.bypass ? " — canonicalization bypass observed" : ""}</div>
+      <div>normalized=${escapeHtml(verdict.normalized)}</div>
+    </div>` : `<div class="result-box" style="color:#00ff4155">// Try cloud metadata, loopback services, and encoded localhost variants //</div>`}
+    ${body ? `<pre>${escapeHtml(body)}</pre>` : verdict?.blocked ? `<pre style="color:#ff4444">// Request blocked by fetcher policy //</pre>` : ""}
+  </div>
+</body>
+</html>`;
+
+  res.setHeader("Content-Type", "text/html");
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  res.send(html);
+});
+
+// ─── XXE Realistic Simulation ────────────────────────────────────────────────
+function parseXxe(xml: string): { success: boolean; message: string } {
+  if (!/<!DOCTYPE/i.test(xml)) {
+    return { success: false, message: "Parser accepted XML, but no DOCTYPE was found." };
+  }
+
+  const fakeReads: Record<string, string> = {
+    "file:///etc/passwd": FAKE_FILES["/etc/passwd"],
+    "file:///proc/self/environ": FAKE_FILES["/proc/self/environ"],
+    "http://169.254.169.254/latest/meta-data/iam/security-credentials/": "training-role",
+    "http://169.254.169.254/latest/meta-data/iam/security-credentials/training-role": JSON.stringify({
+      AccessKeyId: "ASIA_TRAINING_ONLY",
+      SecretAccessKey: "redacted-training-secret",
+      Token: "session-token-for-lab",
+      Expiration: "2026-05-19T23:59:59Z",
+    }, null, 2),
+  };
+
+  const entityMatches = Array.from(xml.matchAll(/<!ENTITY\s+([A-Za-z0-9_-]+)\s+SYSTEM\s+["']([^"']+)["']\s*>/gi));
+  const parameterMatches = Array.from(xml.matchAll(/<!ENTITY\s+%\s*([A-Za-z0-9_-]+)\s+SYSTEM\s+["']([^"']+)["']\s*>/gi));
+  const entityRefs = new Set(Array.from(xml.matchAll(/&([A-Za-z0-9_-]+);/g), (m) => m[1]));
+  const parameterRefs = new Set(Array.from(xml.matchAll(/%([A-Za-z0-9_-]+);/g), (m) => m[1]));
+
+  const resolvedParts: string[] = [];
+
+  for (const [, name, systemId] of entityMatches) {
+    if (entityRefs.has(name)) {
+      const resolved = fakeReads[systemId] ?? `Outbound entity resolution attempted: ${systemId}`;
+      resolvedParts.push(`Resolved &${name}; from ${systemId}\n\n${resolved}`);
+    }
+  }
+
+  for (const [, name, systemId] of parameterMatches) {
+    if (parameterRefs.has(name)) {
+      const resolved = fakeReads[systemId] ?? `Outbound entity resolution attempted: ${systemId}`;
+      resolvedParts.push(`Resolved %${name}; from ${systemId}\n\n${resolved}`);
+    }
+  }
+
+  if (resolvedParts.length === 0) {
+    return { success: false, message: "Parser accepted XML, but no external entity was resolved." };
+  }
+
+  return { success: true, message: resolvedParts.join("\n\n") };
+}
+
+router.get("/lab/xxe/parse", (req, res): void => {
+  const xml = String(req.query.xml ?? "");
+  const parsed = xml ? parseXxe(xml) : null;
+  if (xml) recordLabAttempt(req, "xxe", "external-entity", xml, Boolean(parsed?.success));
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><style>${LAB_CSS}
+  textarea { min-height:130px; }
+  pre { background:#0d0d0d;border:1px solid #00ff4133;padding:12px;white-space:pre-wrap;word-break:break-word;margin-top:10px; }
+</style></head>
+<body>
+  <div class="banner">[!] INTENTIONALLY VULNERABLE — XXE XML IMPORTER</div>
+  <div class="section">
+    <h2>// XXE — Legacy XML Invoice Parser //</h2>
+    <p style="color:#00ff4199;margin-bottom:12px;">Scenario: an old XML parser resolves external entities while importing invoices. The lab safely simulates file and metadata reads.</p>
+    <form method="GET" action="">
+      <div class="label">XML document</div>
+      <textarea name="xml" placeholder="Paste XML with a DOCTYPE external entity...">${escapeHtml(xml)}</textarea>
+      <button>[PARSE XML]</button>
+    </form>
+    ${parsed ? `<pre class="${parsed.success ? "green" : "red"}">${escapeHtml(parsed.message)}</pre>` : `<pre style="color:#00ff4155">// Try defining an external entity pointing at file:///etc/passwd //</pre>`}
+  </div>
+</body>
+</html>`;
+
+  res.setHeader("Content-Type", "text/html");
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  res.send(html);
 });
 
 export default router;

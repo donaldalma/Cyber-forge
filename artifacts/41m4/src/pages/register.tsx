@@ -47,7 +47,6 @@ export default function Register() {
       <nav className="border-b border-border/50 p-4 bg-background/90 backdrop-blur">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <button onClick={() => setLocation("/")} className="text-2xl font-bold tracking-widest text-primary hover:opacity-80">41M4</button>
-          <Button variant="ghost" size="sm" onClick={() => setLocation("/login")} className="text-muted-foreground hover:text-primary rounded-none">[LOGIN]</Button>
         </div>
       </nav>
 
@@ -164,10 +163,7 @@ export default function Register() {
               )}
 
               <div className="text-center text-xs text-muted-foreground pt-2 border-t border-border/40">
-                Already registered?{" "}
-                <button onClick={() => setLocation("/login")} className="text-primary hover:underline">
-                  [LOGIN]
-                </button>
+                Already registered? Please return to the home page.
               </div>
             </div>
           </div>

@@ -27,58 +27,6 @@ const METHOD_COLORS: Record<Method, string> = {
 
 const ENDPOINTS: { group: string; endpoints: Endpoint[] }[] = [
   {
-    group: "Auth",
-    endpoints: [
-      {
-        method: "POST",
-        path: "/api/auth/register",
-        summary: "Register a new user account",
-        description: "Creates a new user account and establishes a session. Username must be 3-30 characters (alphanumeric, _ and - only). Password must be at least 8 characters.",
-        params: [
-          { name: "username", in: "body", type: "string", required: true, description: "3-30 chars, letters/numbers/_/-" },
-          { name: "email", in: "body", type: "string", required: true, description: "Valid email address" },
-          { name: "password", in: "body", type: "string", required: true, description: "Minimum 8 characters" },
-        ],
-        response: `{ "id": 1, "username": "h4ck3r", "email": "h4ck3r@domain.com", "role": "user" }`,
-        example: `curl -X POST /api/auth/register \\
-  -H "Content-Type: application/json" \\
-  -d '{"username":"h4ck3r","email":"h@x.com","password":"securepass123"}'`,
-      },
-      {
-        method: "POST",
-        path: "/api/auth/login",
-        summary: "Authenticate and start a session",
-        description: "Validates credentials and creates a session cookie. The session is stored server-side in PostgreSQL.",
-        params: [
-          { name: "email", in: "body", type: "string", required: true, description: "Registered email address" },
-          { name: "password", in: "body", type: "string", required: true, description: "Account password" },
-        ],
-        response: `{ "id": 1, "username": "h4ck3r", "email": "h@x.com", "role": "user" }`,
-        example: `curl -X POST /api/auth/login \\
-  -H "Content-Type: application/json" \\
-  -c cookies.txt \\
-  -d '{"email":"h@x.com","password":"securepass123"}'`,
-      },
-      {
-        method: "POST",
-        path: "/api/auth/logout",
-        summary: "Terminate the current session",
-        description: "Destroys the server-side session and clears the session cookie.",
-        response: `{ "ok": true }`,
-        example: `curl -X POST /api/auth/logout -b cookies.txt`,
-      },
-      {
-        method: "GET",
-        path: "/api/auth/me",
-        summary: "Get current authenticated user",
-        description: "Returns the authenticated user's profile. Returns 401 if not authenticated.",
-        auth: true,
-        response: `{ "id": 1, "username": "h4ck3r", "email": "h@x.com", "role": "user", "createdAt": "2024-01-01T00:00:00Z" }`,
-        example: `curl /api/auth/me -b cookies.txt`,
-      },
-    ],
-  },
-  {
     group: "Payloads",
     endpoints: [
       {
@@ -88,7 +36,6 @@ const ENDPOINTS: { group: string; endpoints: Endpoint[] }[] = [
         description: "Returns a paginated list of payloads. Supports full-text search across payload body, title, description, and subcategory. Combine filters as needed.",
         params: [
           { name: "category", in: "query", type: "string", required: false, description: "XSS | SQLi | CSRF | LFI | SSRF | XXE | RCE | IDOR | Open Redirect | SSTI | Path Traversal | Command Injection" },
-          { name: "severity", in: "query", type: "string", required: false, description: "Critical | High | Medium | Low | Info" },
           { name: "search", in: "query", type: "string", required: false, description: "Free text search across payload body, title, description" },
           { name: "bypass", in: "query", type: "boolean", required: false, description: "true — returns only WAF/CSP/filter bypass payloads" },
           { name: "page", in: "query", type: "integer", required: false, description: "Page number (default: 1)" },
@@ -103,7 +50,6 @@ const ENDPOINTS: { group: string; endpoints: Endpoint[] }[] = [
       "title": "Script Tag Classic",
       "payload": "<script>alert(1)</script>",
       "description": "The simplest XSS payload...",
-      "severity": "High",
       "isBypass": false,
       "bypassType": null,
       "tags": ["basic", "script"],
@@ -120,8 +66,8 @@ curl "/api/payloads?category=XSS&bypass=true&page=1&limit=20"
 # Full text search
 curl "/api/payloads?search=SLEEP"
 
-# Critical SQLi payloads
-curl "/api/payloads?category=SQLi&severity=Critical"`,
+# SQLi payloads
+curl "/api/payloads?category=SQLi"`,
       },
       {
         method: "GET",
@@ -141,17 +87,13 @@ curl "/api/payloads?category=SQLi&severity=Critical"`,
         method: "GET",
         path: "/api/payloads/stats/overview",
         summary: "Get payload database statistics",
-        description: "Returns aggregate counts broken down by category and severity. Useful for dashboard widgets.",
+        description: "Returns aggregate counts broken down by category. Useful for dashboard widgets.",
         response: `{
   "total": 320,
   "bypassCount": 89,
   "byCategory": [
     { "category": "XSS", "count": 72 },
     { "category": "SQLi", "count": 65 }
-  ],
-  "bySeverity": [
-    { "severity": "Critical", "count": 48 },
-    { "severity": "High", "count": 120 }
   ]
 }`,
         example: `curl /api/payloads/stats/overview`,
@@ -169,10 +111,9 @@ curl "/api/payloads?category=SQLi&severity=Critical"`,
   "category": "SQLi",
   "subcategory": "UNION-based",
   "title": "UNION credential dump",
-  "payload": "' UNION SELECT username,password FROM users--",
-  "description": "Dumps usernames and passwords...",
-  "severity": "Critical",
-  "isBypass": false,
+      "payload": "' UNION SELECT username,password FROM users--",
+      "description": "Dumps usernames and passwords...",
+      "isBypass": false,
   "bypassType": null,
   "tags": ["union", "credential-dump"],
   "platform": null,
@@ -190,13 +131,13 @@ curl "/api/payloads?category=SQLi&severity=Critical"`,
         method: "GET",
         path: "/api/lab/xss/reflected",
         summary: "Reflected XSS lab endpoint",
-        description: "Returns an HTML page that reflects the ?name= query parameter without sanitization. Test XSS payloads directly in the name parameter. The response is a full HTML page.",
+        description: "Returns an HTML page that reflects the ?payload= query parameter without sanitization. Test XSS payloads directly in the payload parameter. The response is a full HTML page.",
         params: [
-          { name: "name", in: "query", type: "string", required: false, description: "Value reflected unsanitized into the HTML response" },
+          { name: "payload", in: "query", type: "string", required: false, description: "Value reflected unsanitized into the HTML response" },
         ],
         response: `HTML page with reflected user input`,
         example: `# Open in browser:
-/api/lab/xss/reflected?name=<img+src=x+onerror=alert(1)>`,
+/api/lab/xss/reflected?payload=<img+src=x+onerror=alert(1)>`,
       },
       {
         method: "GET",
@@ -212,11 +153,13 @@ curl "/api/payloads?category=SQLi&severity=Critical"`,
         summary: "Stored XSS lab — submit a comment",
         description: "Stores a comment without sanitization. Any XSS payload in the comment will execute when the stored lab page is visited.",
         params: [
-          { name: "comment", in: "body", type: "string", required: true, description: "Comment text (stored and rendered unescaped)" },
+          { name: "username", in: "body", type: "string", required: false, description: "Display name for the comment" },
+          { name: "body", in: "body", type: "string", required: true, description: "Comment text stored and rendered unescaped" },
         ],
         response: `Redirect to stored lab page`,
         example: `curl -X POST /api/lab/xss/stored \\
-  -d 'comment=<script>alert(document.cookie)</script>'`,
+  -d 'username=operator' \\
+  -d 'body=<script>alert(document.cookie)</script>'`,
       },
       {
         method: "GET",
@@ -256,10 +199,42 @@ curl "/api/payloads?category=SQLi&severity=Critical"`,
       },
       {
         method: "GET",
+        path: "/api/lab/ssrf/fetch",
+        summary: "SSRF lab — webhook fetcher",
+        description: "A realistic server-side fetcher simulation with naive blocklist behavior, internal services, cloud metadata targets, and parser-mismatch bypass cases.",
+        params: [
+          { name: "url", in: "query", type: "string", required: false, description: "URL fetched by the simulated backend service" },
+        ],
+        response: `HTML page with fetcher policy decision and simulated backend response`,
+        example: `# Open in browser:
+/api/lab/ssrf/fetch?url=http://0x7f000001:8080/admin`,
+      },
+      {
+        method: "GET",
+        path: "/api/lab/xxe/parse",
+        summary: "XXE lab — legacy XML parser",
+        description: "Simulates an XML importer that resolves external entities. Safe fake file and cloud-metadata reads demonstrate realistic XXE impact without touching host files.",
+        params: [
+          { name: "xml", in: "query", type: "string", required: false, description: "XML document containing a DOCTYPE external entity" },
+        ],
+        response: `HTML page showing parser result and resolved entity content`,
+        example: `# Open in browser with URL-encoded XML:
+/api/lab/xxe/parse?xml=<!DOCTYPE r [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><r>&xxe;</r>`,
+      },
+      {
+        method: "GET",
+        path: "/api/lab/progress",
+        summary: "Lab progress",
+        description: "Returns the current lab progress metadata without requiring authentication.",
+        response: `{ "labs": [], "recent": [] }`,
+        example: `curl /api/lab/progress`,
+      },
+      {
+        method: "GET",
         path: "/api/healthz",
         summary: "API health check",
         description: "Returns the API server status. Use to verify the service is running before making other requests.",
-        response: `{ "status": "ok", "ts": "2024-01-01T00:00:00Z" }`,
+        response: `{ "status": "ok" }`,
         example: `curl /api/healthz`,
       },
     ],
@@ -360,7 +335,6 @@ export default function ApiReference() {
             <button onClick={() => setLocation("/docs")} className="text-xs text-muted-foreground hover:text-primary tracking-widest">[DOCS]</button>
             <Badge variant="outline" className="border-primary text-primary rounded-none">API REF</Badge>
             <button onClick={() => setLocation("/lab")} className="text-xs text-orange-400 hover:text-orange-300 tracking-widest">[ATTACK BOX]</button>
-            <button onClick={() => setLocation("/login")} className="text-xs text-muted-foreground hover:text-primary tracking-widest">[LOGIN]</button>
           </div>
         </div>
       </nav>
@@ -368,13 +342,12 @@ export default function ApiReference() {
       <div className="max-w-5xl mx-auto w-full px-4 py-8 space-y-8">
         <div>
           <h1 className="text-3xl font-bold tracking-widest text-primary uppercase mb-2">API Reference</h1>
-          <p className="text-muted-foreground text-sm">Base URL: <code className="text-primary">/api</code> — All endpoints return JSON unless noted. Session cookie required for auth-gated routes.</p>
+          <p className="text-muted-foreground text-sm">Base URL: <code className="text-primary">/api</code> — All endpoints return JSON unless noted.</p>
         </div>
 
         <div className="border border-primary/20 bg-primary/5 p-4 text-xs text-muted-foreground">
           <span className="text-primary font-bold">NOTE: </span>
-          Session-based auth — include <code className="text-primary">credentials: 'include'</code> in fetch calls, or use <code className="text-primary">-b cookies.txt</code> in curl.
-          Auth-gated endpoints return <code className="text-primary">401</code> when unauthenticated.
+          All documented endpoints are accessible without authentication in this deployment.
         </div>
 
         {ENDPOINTS.map(group => (

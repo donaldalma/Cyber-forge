@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import healthRouter from "./health";
-import labRouter from "./lab";
 import authRouter from "./auth";
+import labRouter from "./lab";
 import payloadsRouter from "./payloads";
 
 const router: IRouter = Router();

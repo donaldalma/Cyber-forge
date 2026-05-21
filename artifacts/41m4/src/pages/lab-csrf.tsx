@@ -22,13 +22,6 @@ const CSRF_PAYLOADS = [
     desc: "A hidden form on attacker's page auto-submits on load, draining the victim's account.",
     note: "Host this on any domain — no CSRF token means it will work.",
   },
-  {
-    id: 203,
-    label: "Logout CSRF",
-    payload: `<img src="/api/auth/logout">`,
-    desc: "Forces the victim to log out by sending a GET request to the logout endpoint.",
-    note: "Effective for session disruption attacks.",
-  },
 ];
 
 export default function LabCsrf() {
@@ -48,7 +41,8 @@ export default function LabCsrf() {
     setAttackIframeKey((k) => k + 1);
   };
 
-  const handleReset = () => {
+  const handleReset = async () => {
+    await fetch("/api/lab/csrf/reset", { method: "POST" }).catch(() => {});
     setIframeKey((k) => k + 1);
     setAttackIframeKey(0);
     setAttackHtml("");

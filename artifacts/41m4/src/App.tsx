@@ -4,13 +4,14 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
+import Arsenal from "@/pages/arsenal";
 import Lab from "@/pages/lab";
 import LabXss from "@/pages/lab-xss";
 import LabSqli from "@/pages/lab-sqli";
 import LabCsrf from "@/pages/lab-csrf";
 import LabLfi from "@/pages/lab-lfi";
-import Login from "@/pages/login";
-import Register from "@/pages/register";
+import LabSsrf from "@/pages/lab-ssrf";
+import LabXxe from "@/pages/lab-xxe";
 import Docs from "@/pages/docs";
 import ApiReference from "@/pages/api-reference";
 
@@ -20,15 +21,18 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
-      <Route path="/login" component={Login} />
-      <Route path="/register" component={Register} />
+      <Route path="/arsenal" component={Arsenal} />
       <Route path="/docs" component={Docs} />
       <Route path="/api-reference" component={ApiReference} />
       <Route path="/lab" component={Lab} />
+      <Route path="/lab/" component={Lab} />
       <Route path="/lab/xss" component={LabXss} />
       <Route path="/lab/sqli" component={LabSqli} />
       <Route path="/lab/csrf" component={LabCsrf} />
       <Route path="/lab/lfi" component={LabLfi} />
+      <Route path="/lab/ssrf" component={LabSsrf} />
+      <Route path="/lab/xxe" component={LabXxe} />
+      <Route path="/lab/:rest*" component={Lab} />
       <Route component={NotFound} />
     </Switch>
   );

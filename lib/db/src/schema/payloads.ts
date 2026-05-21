@@ -6,8 +6,6 @@ export const payloadCategoryEnum = pgEnum("payload_category", [
   "XSS", "SQLi", "CSRF", "LFI", "SSRF", "XXE", "RCE", "IDOR", "Open Redirect", "SSTI", "Path Traversal", "Command Injection"
 ]);
 
-export const payloadSeverityEnum = pgEnum("payload_severity", ["Critical", "High", "Medium", "Low", "Info"]);
-
 export const payloadsTable = pgTable("payloads", {
   id: serial("id").primaryKey(),
   category: payloadCategoryEnum("category").notNull(),
@@ -15,7 +13,6 @@ export const payloadsTable = pgTable("payloads", {
   title: text("title").notNull(),
   payload: text("payload").notNull(),
   description: text("description").notNull(),
-  severity: payloadSeverityEnum("severity").notNull(),
   isBypass: boolean("is_bypass").notNull().default(false),
   bypassType: text("bypass_type"),
   tags: text("tags").array().notNull().default([]),

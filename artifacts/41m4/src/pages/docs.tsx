@@ -25,7 +25,6 @@ documented here.`,
 vulnerability categories. Each payload includes:
 
 - Category and subcategory classification
-- Severity rating (Critical / High / Medium / Low / Info)
 - Technical description explaining the mechanism
 - WAF bypass classification when applicable
 - Platform specificity (MySQL, PHP, Java, etc.)
@@ -35,7 +34,6 @@ SEARCHING
 Use the search bar on the home page or the /api/payloads endpoint to search by:
 - Free text (matches payload body, title, description)
 - Category filter (XSS, SQLi, LFI, SSRF, XXE, RCE, CSRF, IDOR, Open Redirect, SSTI, Command Injection)
-- Severity filter
 - Bypass-only mode
 
 CATEGORIES
@@ -60,7 +58,7 @@ routes with real vulnerability patterns.
 AVAILABLE LABS
 
 [XSS Lab]
-- /api/lab/xss/reflected — GET ?name= parameter reflected without encoding
+- /api/lab/xss/reflected — GET ?payload= parameter reflected without encoding
 - /api/lab/xss/stored — POST /comment stores and renders comments unescaped (in-memory)
 - /api/lab/xss/dom — Client-side DOM-based XSS via location.hash
 
@@ -76,37 +74,20 @@ AVAILABLE LABS
 - /api/lab/lfi — GET ?file= parameter demonstrates path traversal patterns
   Safe simulation — returns file structure metadata, not real file contents
 
+[SSRF Lab]
+- /api/lab/ssrf/fetch — GET ?url= parameter is fetched by a simulated server-side webhook previewer
+  Includes internal services, cloud metadata, and canonicalization bypass behavior
+
+[XXE Lab]
+- /api/lab/xxe/parse — GET ?xml= parameter is parsed by a simulated legacy XML importer
+  Resolves external entities against safe fake files and metadata endpoints
+
+[Progress]
+- /api/lab/progress — returns lab progress metadata without requiring user authentication
+
 ETHICAL USAGE
 The labs are hosted within this application — you already have permission. Never 
 use techniques learned here against external systems without authorization.`,
-  },
-  {
-    id: "auth",
-    title: "Authentication",
-    icon: <Shield className="w-4 h-4" />,
-    content: `41M4 uses session-based authentication backed by PostgreSQL.
-
-REGISTRATION
-POST /api/auth/register
-Required fields: username (3-30 chars, alphanumeric/_/-), email, password (min 8 chars)
-Returns: user object with id, username, email, role
-
-LOGIN
-POST /api/auth/login
-Required fields: email, password
-Returns: user object; sets HttpOnly session cookie
-
-SESSION
-Sessions are stored in PostgreSQL, expire after 7 days.
-All subsequent requests include credentials via the session cookie.
-
-LOGOUT
-POST /api/auth/logout
-Destroys the session and clears the cookie.
-
-CURRENT USER
-GET /api/auth/me
-Returns the authenticated user or 401 if not logged in.`,
   },
   {
     id: "xss-guide",
@@ -319,7 +300,6 @@ export default function Docs() {
             <Badge variant="outline" className="border-primary text-primary rounded-none">DOCS</Badge>
             <button onClick={() => setLocation("/api-reference")} className="text-xs text-muted-foreground hover:text-primary tracking-widest">[API REF]</button>
             <button onClick={() => setLocation("/lab")} className="text-xs text-orange-400 hover:text-orange-300 tracking-widest">[ATTACK BOX]</button>
-            <button onClick={() => setLocation("/login")} className="text-xs text-muted-foreground hover:text-primary tracking-widest">[LOGIN]</button>
           </div>
         </div>
       </nav>

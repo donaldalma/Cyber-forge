@@ -1,15 +1,16 @@
 import express, { type Express } from "express";
 import cors from "cors";
-import pinoHttp from "pino-http";
 import session from "express-session";
-import connectPgSimple from "connect-pg-simple";
+import pgSession from "connect-pg-simple";
+import pinoHttp from "pino-http";
 import { pool } from "@workspace/db";
 import router from "./routes";
 import { logger } from "./lib/logger";
 
-const PgStore = connectPgSimple(session);
-
 const app: Express = express();
+const PgStore = pgSession(session);
+
+const sessionSecret = process.env.SESSION_SECRET ?? process.env.JWT_SECRET ?? "41m4-dev-secret-change-in-prod";
 
 app.use(
   pinoHttp({
@@ -29,16 +30,26 @@ app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+const SESSION_TTL_HOURS = 24;
+
+pool.query(`CREATE TABLE IF NOT EXISTS "session" (
+  "sid" varchar NOT NULL COLLATE "default",
+  "sess" json NOT NULL,
+  "expire" timestamp(6) NOT NULL,
+  CONSTRAINT "session_pkey" PRIMARY KEY ("sid")
+)`).catch((err: Error) => logger.warn({ err }, "Session table may already exist"));
+
 app.use(
   session({
-    store: new PgStore({ pool, createTableIfMissing: true }),
-    secret: process.env.SESSION_SECRET ?? "41m4-dev-secret-change-in-prod",
+    store: new PgStore({ pool, tableName: "session", ttl: SESSION_TTL_HOURS * 3600 }),
+    secret: sessionSecret,
     resave: false,
     saveUninitialized: false,
     cookie: {
       secure: process.env.NODE_ENV === "production",
       httpOnly: true,
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      maxAge: SESSION_TTL_HOURS * 60 * 60 * 1000,
+      sameSite: "lax",
     },
   }),
 );

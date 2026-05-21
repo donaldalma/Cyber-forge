@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
-import { Terminal, Shield, Database, FileText, Globe, AlertTriangle, ChevronRight, Cpu } from "lucide-react";
+import { Terminal, Database, FileText, Globe, AlertTriangle, ChevronRight, Cpu } from "lucide-react";
 
 const LAB_MODULES = [
   {
@@ -9,7 +9,6 @@ const LAB_MODULES = [
     name: "Cross-Site Scripting",
     code: "XSS",
     icon: <Terminal className="w-8 h-8" />,
-    severity: "Critical",
     payloads: "20+",
     desc: "Inject malicious scripts into web pages viewed by other users. Practice reflected, stored, and DOM-based XSS in a live vulnerable environment.",
     techniques: ["Reflected XSS", "Stored XSS", "DOM-based XSS", "WAF Bypass", "CSP Evasion"],
@@ -21,7 +20,6 @@ const LAB_MODULES = [
     name: "SQL Injection",
     code: "SQLi",
     icon: <Database className="w-8 h-8" />,
-    severity: "Critical",
     payloads: "10+",
     desc: "Exploit poorly written database queries. Extract credentials, bypass authentication, and drop tables in a live simulated SQL environment.",
     techniques: ["Auth Bypass", "UNION-based", "Blind SQLi", "Time-based", "Error-based"],
@@ -33,7 +31,6 @@ const LAB_MODULES = [
     name: "Cross-Site Request Forgery",
     code: "CSRF",
     icon: <Globe className="w-8 h-8" />,
-    severity: "High",
     payloads: "3+",
     desc: "Force authenticated users to perform unintended actions. Hijack bank transfers and account changes without the victim's knowledge.",
     techniques: ["GET-based CSRF", "POST-based CSRF", "JSON CSRF", "Logout CSRF"],
@@ -45,9 +42,8 @@ const LAB_MODULES = [
     name: "Local File Inclusion",
     code: "LFI",
     icon: <FileText className="w-8 h-8" />,
-    severity: "Critical",
     payloads: "7+",
-    desc: "Read arbitrary files from the server filesystem. Expose /etc/passwd, config files, and environment variables via path traversal.",
+    desc: "Practice file-read impact safely with realistic fake filesystem targets, config leaks, and environment-variable exposure via path traversal.",
     techniques: ["Path Traversal", "Null Byte Bypass", "PHP Wrappers", "Log Poisoning"],
     status: "ACTIVE",
     path: "/lab/lfi",
@@ -57,36 +53,39 @@ const LAB_MODULES = [
     name: "Server-Side Request Forgery",
     code: "SSRF",
     icon: <Cpu className="w-8 h-8" />,
-    severity: "High",
-    payloads: "6+",
+    payloads: "8+",
     desc: "Make the server issue requests to internal services. Access cloud metadata endpoints, internal APIs, and scan private networks.",
     techniques: ["AWS Metadata", "Internal Port Scan", "Protocol Smuggling", "IP Bypass"],
-    status: "COMING SOON",
-    path: null,
+    status: "ACTIVE",
+    path: "/lab/ssrf",
   },
   {
     id: "xxe",
     name: "XML External Entity",
     code: "XXE",
     icon: <AlertTriangle className="w-8 h-8" />,
-    severity: "High",
     payloads: "3+",
     desc: "Exploit XML parsers to read files, perform SSRF, and execute blind out-of-band data exfiltration.",
     techniques: ["File Read", "SSRF via XXE", "Blind OOB", "Entity Nesting"],
-    status: "COMING SOON",
-    path: null,
+    status: "ACTIVE",
+    path: "/lab/xxe",
   },
 ];
-
-const SEVERITY_COLOR: Record<string, string> = {
-  Critical: "text-red-500 border-red-500",
-  High: "text-orange-400 border-orange-400",
-  Medium: "text-yellow-400 border-yellow-400",
-};
 
 export default function Lab() {
   const [, setLocation] = useLocation();
   const [hovered, setHovered] = useState<string | null>(null);
+  const [progress, setProgress] = useState<Record<string, { attempts: number; solved: number }>>({});
+
+  useEffect(() => {
+    fetch("/api/lab/progress", { credentials: "include" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!data?.labs) return;
+        setProgress(Object.fromEntries(data.labs.map((row: { labType: string; attempts: number; solved: number }) => [row.labType, row])));
+      })
+      .catch(() => {});
+  }, []);
 
   return (
     <div className="min-h-screen bg-background text-foreground font-mono">
@@ -119,12 +118,16 @@ export default function Lab() {
             ATTACK BOX
           </h1>
           <p className="text-muted-foreground max-w-2xl tracking-wide">
-            Choose a vulnerability class to enter a fully isolated, intentionally vulnerable practice environment. All labs run against real backend endpoints. No mocks.
+            Choose a vulnerability class to enter a fully isolated, intentionally vulnerable practice environment. Labs run through backend endpoints with safe simulated impact data.
           </p>
           <div className="mt-4 flex items-center gap-3 text-xs text-muted-foreground">
             <span className="text-green-500">● {LAB_MODULES.filter(m => m.status === "ACTIVE").length} ACTIVE</span>
-            <span className="text-muted-foreground/50">|</span>
-            <span className="text-muted-foreground/50">● {LAB_MODULES.filter(m => m.status !== "ACTIVE").length} COMING SOON</span>
+            {LAB_MODULES.some(m => m.status !== "ACTIVE") && (
+              <>
+                <span className="text-muted-foreground/50">|</span>
+                <span className="text-muted-foreground/50">● {LAB_MODULES.filter(m => m.status !== "ACTIVE").length} COMING SOON</span>
+              </>
+            )}
           </div>
         </div>
 
@@ -151,14 +154,9 @@ export default function Lab() {
                 {/* Top row */}
                 <div className="flex items-start justify-between">
                   <div className="text-primary">{lab.icon}</div>
-                  <div className="flex flex-col items-end gap-1">
-                    <span className={`text-xs border px-2 py-0.5 tracking-wider ${SEVERITY_COLOR[lab.severity] ?? "text-primary border-primary"}`}>
-                      {lab.severity.toUpperCase()}
-                    </span>
-                    {lab.status !== "ACTIVE" && (
-                      <span className="text-xs text-muted-foreground/50 tracking-wider">COMING SOON</span>
-                    )}
-                  </div>
+                  {lab.status !== "ACTIVE" && (
+                    <span className="text-xs text-muted-foreground/50 tracking-wider">COMING SOON</span>
+                  )}
                 </div>
 
                 {/* Name */}
@@ -195,6 +193,11 @@ export default function Lab() {
                     </div>
                   )}
                 </div>
+                {progress[lab.id] && (
+                  <div className="text-xs text-muted-foreground border-t border-border/30 pt-2">
+                    {progress[lab.id].solved}/{progress[lab.id].attempts} successful attempts recorded
+                  </div>
+                )}
               </motion.div>
             );
           })}

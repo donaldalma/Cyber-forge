@@ -2,21 +2,26 @@ openapi: 3.1.0
 info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
-  version: 0.1.0
-  description: API specification
+  version: 0.2.0
+  description: 41M4 API for authorized web-security training, payload research, and contained lab exercises.
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Session authentication
+  - name: payloads
+    description: Payload arsenal search and statistics
+  - name: labs
+    description: Intentionally vulnerable contained training labs
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +29,266 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /auth/register:
+    post:
+      operationId: register
+      tags: [auth]
+      summary: Register a user and start a session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: Registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Invalid input
+        "409":
+          description: Email or username already exists
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login and start a session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Invalid credentials
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Destroy the current session
+      responses:
+        "200":
+          description: Logged out
+  /auth/me:
+    get:
+      operationId: getCurrentUser
+      tags: [auth]
+      summary: Get the current authenticated user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "401":
+          description: Not authenticated
+  /payloads:
+    get:
+      operationId: listPayloads
+      tags: [payloads]
+      summary: Search and filter payloads
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: bypass
+          in: query
+          schema:
+            type: boolean
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        "200":
+          description: Payload page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayloadPage"
+  /payloads/categories:
+    get:
+      operationId: listPayloadCategories
+      tags: [payloads]
+      summary: Count payloads by category
+      responses:
+        "200":
+          description: Category counts
+  /payloads/stats/overview:
+    get:
+      operationId: getPayloadStats
+      tags: [payloads]
+      summary: Get payload aggregate statistics
+      responses:
+        "200":
+          description: Payload statistics
+  /payloads/{id}:
+    get:
+      operationId: getPayload
+      tags: [payloads]
+      summary: Get one payload and increment its view counter
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Payload"
+        "404":
+          description: Payload not found
+  /lab/progress:
+    get:
+      operationId: getLabProgress
+      tags: [labs]
+      summary: Get authenticated user's lab attempt progress
+      responses:
+        "200":
+          description: Lab progress
+        "401":
+          description: Not authenticated
+  /lab/xss/reflected:
+    get:
+      operationId: reflectedXssLab
+      tags: [labs]
+      summary: Reflected XSS target page
+      parameters:
+        - name: payload
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: HTML lab page
+  /lab/xss/stored:
+    get:
+      operationId: storedXssLab
+      tags: [labs]
+      summary: Stored XSS comment board
+      responses:
+        "200":
+          description: HTML lab page
+    post:
+      operationId: postStoredXssComment
+      tags: [labs]
+      summary: Store an intentionally unescaped comment
+      responses:
+        "302":
+          description: Redirects to stored XSS page
+  /lab/xss/stored/reset:
+    delete:
+      operationId: resetStoredXssLab
+      tags: [labs]
+      summary: Reset stored XSS comments
+      responses:
+        "200":
+          description: Reset status
+  /lab/xss/dom:
+    get:
+      operationId: domXssLab
+      tags: [labs]
+      summary: DOM XSS hash-fragment target
+      responses:
+        "200":
+          description: HTML lab page
+  /lab/sqli/search:
+    get:
+      operationId: sqliSearchLab
+      tags: [labs]
+      summary: SQL injection search simulation
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: HTML lab page
+  /lab/csrf/bank:
+    get:
+      operationId: csrfBankLab
+      tags: [labs]
+      summary: Vulnerable bank-transfer page
+      responses:
+        "200":
+          description: HTML lab page
+  /lab/csrf/transfer:
+    post:
+      operationId: csrfTransferLab
+      tags: [labs]
+      summary: Transfer endpoint without CSRF token validation
+      responses:
+        "200":
+          description: HTML result page
+  /lab/lfi:
+    get:
+      operationId: lfiLab
+      tags: [labs]
+      summary: Local file inclusion/path traversal simulation
+      parameters:
+        - name: file
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: HTML lab page
+  /lab/ssrf/fetch:
+    get:
+      operationId: ssrfFetchLab
+      tags: [labs]
+      summary: SSRF webhook fetcher simulation with parser mismatch cases
+      parameters:
+        - name: url
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: HTML lab page
+  /lab/xxe/parse:
+    get:
+      operationId: xxeParseLab
+      tags: [labs]
+      summary: XXE XML parser simulation
+      parameters:
+        - name: xml
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: HTML lab page
 components:
   schemas:
     HealthStatus:
@@ -31,6 +296,103 @@ components:
       properties:
         status:
           type: string
-      required:
-        - status
-
+      required: [status]
+    RegisterRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 30
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+      required: [username, email, password]
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+      required: [email, password]
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+      required: [id, username, email, role]
+    UserProfile:
+      allOf:
+        - $ref: "#/components/schemas/User"
+        - type: object
+          properties:
+            github:
+              type: string
+              nullable: true
+            bio:
+              type: string
+              nullable: true
+            createdAt:
+              type: string
+    Payload:
+      type: object
+      properties:
+        id:
+          type: integer
+        category:
+          type: string
+        subcategory:
+          type: string
+        title:
+          type: string
+        payload:
+          type: string
+        description:
+          type: string
+        isBypass:
+          type: boolean
+        bypassType:
+          type: string
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+        platform:
+          type: string
+          nullable: true
+        cve:
+          type: string
+          nullable: true
+        views:
+          type: integer
+      required: [id, category, subcategory, title, payload, description, isBypass, tags, views]
+    PayloadPage:
+      type: object
+      properties:
+        payloads:
+          type: array
+          items:
+            $ref: "#/components/schemas/Payload"
+        meta:
+          type: object
+          properties:
+            total:
+              type: integer
+            page:
+              type: integer
+            limit:
+              type: integer
+            pages:
+              type: integer
