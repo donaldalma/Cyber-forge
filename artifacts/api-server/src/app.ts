@@ -60,7 +60,7 @@ app.use(
 
 app.use("/api", router);
 
-app.get("/*", (_req, res) => {
+app.get(/.*/, (_req, res) => {
   res.sendFile(path.join(publicDir, "index.html"));
 });
 
