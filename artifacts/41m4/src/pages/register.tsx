@@ -4,6 +4,7 @@ import { Terminal, Lock, User, Mail, AlertCircle, CheckCircle } from "lucide-rea
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { apiFetch } from "@/lib/api";
 
 export default function Register() {
   const [, setLocation] = useLocation();
@@ -25,7 +26,7 @@ export default function Register() {
     }
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/register", {
+      const res = await apiFetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",

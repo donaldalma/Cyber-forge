@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { apiFetch } from "@/lib/api";
 
 interface Payload {
   id: number;
@@ -41,7 +42,7 @@ export default function Arsenal() {
   const [selectedPayload, setSelectedPayload] = useState<Payload | null>(null);
 
   useEffect(() => {
-    fetch("/api/payloads/stats/overview")
+    apiFetch("/api/payloads/stats/overview")
       .then(r => r.json())
       .then(setStats)
       .catch(() => {});
@@ -56,13 +57,13 @@ export default function Arsenal() {
       if (bypassOnly) params.set("bypass", "true");
       params.set("page", "1");
       params.set("limit", "100");
-      const first = await fetch(`/api/payloads?${params}`);
+      const first = await apiFetch(`/api/payloads?${params}`);
       const firstData = await first.json();
       let allPayloads: Payload[] = firstData.payloads ?? [];
       const totalPages = firstData.meta?.pages ?? 1;
       for (let p = 2; p <= totalPages; p++) {
         params.set("page", String(p));
-        const r = await fetch(`/api/payloads?${params}`);
+        const r = await apiFetch(`/api/payloads?${params}`);
         const d = await r.json();
         if (Array.isArray(d.payloads) && d.payloads.length > 0) {
           allPayloads = allPayloads.concat(d.payloads);

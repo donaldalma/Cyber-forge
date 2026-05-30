@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { Terminal, Shield, Activity, Zap, Server, BookOpen, Code2, FlaskConical, ChevronRight, Target, Lock, Database, Globe, FileText, Cpu, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { apiFetch } from "@/lib/api";
 
 interface Stats {
   total: number;
@@ -36,7 +37,7 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    fetch("/api/payloads/stats/overview")
+    apiFetch("/api/payloads/stats/overview")
       .then(r => r.json())
       .then(setStats)
       .catch(() => {});

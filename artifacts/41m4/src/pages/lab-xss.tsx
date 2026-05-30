@@ -5,6 +5,7 @@ import { Terminal, Copy, Check, RotateCcw, ChevronRight, AlertTriangle, Shield, 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { apiFetch, apiUrl } from "@/lib/api";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -216,12 +217,12 @@ export default function LabXss() {
   const [scanCode_, setScanCode_] = useState("");
   const [scanResults, setScanResults] = useState<ScanFinding[] | null>(null);
   const [iframeKey, setIframeKey] = useState(0);
-  const [iframeUrl, setIframeUrl] = useState(`/api/lab/xss/reflected`);
+  const [iframeUrl, setIframeUrl] = useState(apiUrl(`/api/lab/xss/reflected`));
   const [payloadInput, setPayloadInput] = useState("");
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
-    setIframeUrl(MODE_TARGETS[mode]);
+    setIframeUrl(apiUrl(MODE_TARGETS[mode]));
     setIframeKey((k) => k + 1);
     setPayloadInput("");
   }, [mode]);
@@ -229,11 +230,11 @@ export default function LabXss() {
   const injectPayload = useCallback((payload: string) => {
     setPayloadInput(payload);
     if (mode === "Reflected") {
-      const url = `/api/lab/xss/reflected?payload=${encodeURIComponent(payload)}`;
+      const url = apiUrl(`/api/lab/xss/reflected?payload=${encodeURIComponent(payload)}`);
       setIframeUrl(url);
       setIframeKey((k) => k + 1);
     } else if (mode === "DOM") {
-      const url = `/api/lab/xss/dom#${encodeURIComponent(payload)}`;
+      const url = apiUrl(`/api/lab/xss/dom#${encodeURIComponent(payload)}`);
       setIframeUrl(url);
       setIframeKey((k) => k + 1);
     }
@@ -253,10 +254,10 @@ export default function LabXss() {
 
   const handleReset = async () => {
     if (mode === "Stored") {
-      await fetch("/api/lab/xss/stored/reset", { method: "DELETE" });
+      await apiFetch("/api/lab/xss/stored/reset", { method: "DELETE" });
     }
     setIframeKey((k) => k + 1);
-    setIframeUrl(MODE_TARGETS[mode]);
+    setIframeUrl(apiUrl(MODE_TARGETS[mode]));
     setPayloadInput("");
   };
 

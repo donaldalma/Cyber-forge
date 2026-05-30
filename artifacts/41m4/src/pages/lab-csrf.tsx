@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { useLocation } from "wouter";
 import { ChevronRight, RotateCcw, Copy, Check, AlertTriangle } from "lucide-react";
 import { motion } from "framer-motion";
+import { apiFetch } from "@/lib/api";
 
 const CSRF_PAYLOADS = [
   {
@@ -42,7 +43,7 @@ export default function LabCsrf() {
   };
 
   const handleReset = async () => {
-    await fetch("/api/lab/csrf/reset", { method: "POST" }).catch(() => {});
+    await apiFetch("/api/lab/csrf/reset", { method: "POST" }).catch(() => {});
     setIframeKey((k) => k + 1);
     setAttackIframeKey(0);
     setAttackHtml("");

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { Terminal, Database, FileText, Globe, AlertTriangle, ChevronRight, Cpu } from "lucide-react";
+import { apiFetch } from "@/lib/api";
 
 const LAB_MODULES = [
   {
@@ -78,7 +79,7 @@ export default function Lab() {
   const [progress, setProgress] = useState<Record<string, { attempts: number; solved: number }>>({});
 
   useEffect(() => {
-    fetch("/api/lab/progress", { credentials: "include" })
+    apiFetch("/api/lab/progress", { credentials: "include" })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (!data?.labs) return;
