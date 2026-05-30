@@ -1,6 +1,7 @@
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { spawn } from "node:child_process";
 import { build as esbuild } from "esbuild";
 import esbuildPluginPino from "esbuild-plugin-pino";
 import { rm } from "node:fs/promises";
@@ -10,9 +11,34 @@ globalThis.require = createRequire(import.meta.url);
 
 const artifactDir = path.dirname(fileURLToPath(import.meta.url));
 
+function runCommand(command, args, cwd) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      cwd,
+      stdio: "inherit",
+      shell: process.platform === "win32",
+    });
+
+    child.on("error", reject);
+    child.on("exit", (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`${command} ${args.join(" ")} exited with code ${code}`));
+    });
+  });
+}
+
+async function buildFrontend() {
+  const frontendDir = path.resolve(artifactDir, "../41m4");
+  console.log("Building frontend at", frontendDir);
+  await runCommand("pnpm", ["install", "--frozen-lockfile"], frontendDir);
+  await runCommand("pnpm", ["run", "build"], frontendDir);
+}
+
 async function buildAll() {
   const distDir = path.resolve(artifactDir, "dist");
   await rm(distDir, { recursive: true, force: true });
+
+  await buildFrontend();
 
   await esbuild({
     entryPoints: [path.resolve(artifactDir, "src/index.ts")],
