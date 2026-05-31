@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
-import { Terminal, Database, FileText, Globe, AlertTriangle, ChevronRight, Cpu } from "lucide-react";
+import { Terminal, Database, FileText, Globe, AlertTriangle, ChevronRight, Cpu, X } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const LAB_MODULES = [
   {
@@ -77,6 +78,8 @@ export default function Lab() {
   const [, setLocation] = useLocation();
   const [hovered, setHovered] = useState<string | null>(null);
   const [progress, setProgress] = useState<Record<string, { attempts: number; solved: number }>>({});
+  const [showMobileWarning, setShowMobileWarning] = useState(false);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     apiFetch("/api/lab/progress", { credentials: "include" })
@@ -144,7 +147,15 @@ export default function Lab() {
                 transition={{ delay: i * 0.07 }}
                 onMouseEnter={() => setHovered(lab.id)}
                 onMouseLeave={() => setHovered(null)}
-                onClick={() => isActive && lab.path && setLocation(lab.path)}
+                onClick={() => {
+                  if (isActive && lab.path) {
+                    if (isMobile) {
+                      setShowMobileWarning(true);
+                    } else {
+                      setLocation(lab.path);
+                    }
+                  }
+                }}
                 className={`border border-border p-5 flex flex-col gap-4 transition-all duration-200 ${
                   isActive
                     ? "cursor-pointer hover:border-primary hover:shadow-[0_0_20px_rgba(0,255,65,0.15)]"
@@ -209,6 +220,42 @@ export default function Lab() {
           Warning: These environments are intentionally vulnerable. Use only for authorized security research and education. Never test against systems you do not own.
         </div>
       </div>
+
+      {/* Mobile Warning Dialog */}
+      {showMobileWarning && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-background border border-border max-w-md w-full p-6 flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-primary tracking-wider">DEVICE NOT SUPPORTED</h2>
+              <button
+                onClick={() => setShowMobileWarning(false)}
+                className="text-muted-foreground hover:text-primary transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="border-b border-border/50" />
+            
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              The Attack Box requires a larger screen to function properly. Mobile devices cannot display the vulnerable lab environments due to layout constraints and interaction requirements.
+            </p>
+            
+            <div className="bg-primary/10 border border-primary/30 p-3 rounded text-xs text-primary/80 font-mono">
+              ⚠ REQUIRED: Desktop or tablet (768px+ width)
+            </div>
+            
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowMobileWarning(false)}
+                className="px-4 py-2 border border-border text-muted-foreground hover:border-primary hover:text-primary transition-all text-sm font-bold tracking-wider"
+              >
+                DISMISS
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

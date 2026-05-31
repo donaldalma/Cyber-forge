@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request } from "express";
 import { db, labSessionsTable } from "@workspace/db";
-import { desc, eq, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -13,8 +13,7 @@ function escapeHtml(value: string): string {
 }
 
 function recordLabAttempt(req: Request, labType: string, mode: string, payloadUsed: string, success: boolean): void {
-  const userId = null;
-  void db.insert(labSessionsTable).values({ userId, labType, mode, payloadUsed, success }).catch((err) => {
+  void db.insert(labSessionsTable).values({ labType, mode, payloadUsed, success }).catch((err) => {
     req.log?.warn?.({ err, labType, mode }, "Unable to record lab attempt");
   });
 }
