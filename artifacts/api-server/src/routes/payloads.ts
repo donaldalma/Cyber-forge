@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db, payloadsTable } from "@workspace/db";
 import { eq, ilike, or, and, sql } from "drizzle-orm";
+import { requireAdmin } from "../middleware/require-admin";
 
 const FALLBACK_PAYLOADS = [
   {
@@ -233,6 +234,119 @@ router.get("/payloads/:id", async (req, res): Promise<void> => {
       return;
     }
     res.json(fallback);
+  }
+});
+
+// ─── Admin CRUD ────────────────────────────────────────────────────────────────
+
+router.post("/payloads", requireAdmin, async (req, res): Promise<void> => {
+  try {
+    const { category, subcategory, title, payload, description, isBypass, bypassType, tags, platform, cve } = req.body;
+
+    if (!category || !VALID_CATEGORIES.includes(category)) {
+      res.status(400).json({ error: "Invalid or missing category" });
+      return;
+    }
+    if (!subcategory || !title || !payload || !description) {
+      res.status(400).json({ error: "Missing required fields: subcategory, title, payload, description" });
+      return;
+    }
+
+    const [created] = await db
+      .insert(payloadsTable)
+      .values({
+        category,
+        subcategory,
+        title,
+        payload,
+        description,
+        isBypass: Boolean(isBypass),
+        bypassType: bypassType || null,
+        tags: Array.isArray(tags) ? tags : [],
+        platform: platform || null,
+        cve: cve || null,
+      })
+      .returning();
+
+    res.status(201).json(created);
+  } catch (err) {
+    console.error("Failed to create payload:", err);
+    res.status(500).json({ error: "Failed to create payload" });
+  }
+});
+
+router.put("/payloads/:id", requireAdmin, async (req, res): Promise<void> => {
+  try {
+    const id = parseInt(String(req.params.id), 10);
+    if (isNaN(id)) {
+      res.status(400).json({ error: "Invalid ID" });
+      return;
+    }
+
+    const { category, subcategory, title, payload, description, isBypass, bypassType, tags, platform, cve } = req.body;
+
+    if (category && !VALID_CATEGORIES.includes(category)) {
+      res.status(400).json({ error: "Invalid category" });
+      return;
+    }
+
+    const updates: Record<string, unknown> = {};
+    if (category !== undefined) updates.category = category;
+    if (subcategory !== undefined) updates.subcategory = subcategory;
+    if (title !== undefined) updates.title = title;
+    if (payload !== undefined) updates.payload = payload;
+    if (description !== undefined) updates.description = description;
+    if (isBypass !== undefined) updates.isBypass = Boolean(isBypass);
+    if (bypassType !== undefined) updates.bypassType = bypassType || null;
+    if (tags !== undefined) updates.tags = Array.isArray(tags) ? tags : [];
+    if (platform !== undefined) updates.platform = platform || null;
+    if (cve !== undefined) updates.cve = cve || null;
+
+    if (Object.keys(updates).length === 0) {
+      res.status(400).json({ error: "No fields to update" });
+      return;
+    }
+
+    const [updated] = await db
+      .update(payloadsTable)
+      .set(updates)
+      .where(eq(payloadsTable.id, id))
+      .returning();
+
+    if (!updated) {
+      res.status(404).json({ error: "Payload not found" });
+      return;
+    }
+
+    res.json(updated);
+  } catch (err) {
+    console.error("Failed to update payload:", err);
+    res.status(500).json({ error: "Failed to update payload" });
+  }
+});
+
+router.delete("/payloads/:id", requireAdmin, async (req, res): Promise<void> => {
+  try {
+    const id = parseInt(String(req.params.id), 10);
+    if (isNaN(id)) {
+      res.status(400).json({ error: "Invalid ID" });
+      return;
+    }
+
+    const [deleted] = await db
+      .delete(payloadsTable)
+      .where(eq(payloadsTable.id, id))
+      .returning();
+
+    if (!deleted) {
+      res.status(404).json({ error: "Payload not found" });
+      return;
+    }
+
+    res.json({ ok: true, id });
+  } catch (err) {
+    console.error("Failed to delete payload:", err);
+    res.status(500).json({ error: "Failed to delete payload" });
   }
 });
 

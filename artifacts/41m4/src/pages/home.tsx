@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { Terminal, Shield, Activity, Zap, Server, BookOpen, Code2, FlaskConical, ChevronRight, Target, Lock, Database, Globe, FileText, Cpu, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/auth-context";
 import { apiFetch } from "@/lib/api";
 
 interface Stats {
@@ -20,6 +21,7 @@ const QUICK_LABS = [
 ];
 
 export default function Home() {
+  const { user, isAdmin } = useAuth();
   const [, setLocation] = useLocation();
   const [stats, setStats] = useState<Stats | null>(null);
   const [heroText, setHeroText] = useState("");
@@ -62,6 +64,11 @@ export default function Home() {
             <Button variant="ghost" size="sm" onClick={() => setLocation("/lab")} className="text-orange-400 hover:text-orange-300 hover:bg-orange-400/10 rounded-none border border-orange-400/40 text-xs tracking-wider">
               <FlaskConical className="w-3.5 h-3.5 mr-1.5" />[ATTACK BOX]
             </Button>
+            {user && isAdmin && (
+              <Button variant="ghost" size="sm" onClick={() => setLocation("/admin")} className="text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded-none border border-red-400/40 text-xs tracking-wider">
+                <Shield className="w-3.5 h-3.5 mr-1.5" />[ADMIN]
+              </Button>
+            )}
           </div>
         </div>
       </nav>
