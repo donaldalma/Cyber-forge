@@ -16,5 +16,8 @@
   "devDependencies": {
     "prettier": "^3.8.3",
     "typescript": "~5.9.3"
+  },
+  "dependencies": {
+    "pnpm": "^11.13.0"
   }
 }
