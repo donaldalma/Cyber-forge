@@ -64,11 +64,9 @@ export default function Home() {
             <Button variant="ghost" size="sm" onClick={() => setLocation("/lab")} className="text-orange-400 hover:text-orange-300 hover:bg-orange-400/10 rounded-none border border-orange-400/40 text-xs tracking-wider">
               <FlaskConical className="w-3.5 h-3.5 mr-1.5" />[ATTACK BOX]
             </Button>
-            {user && isAdmin && (
-              <Button variant="ghost" size="sm" onClick={() => setLocation("/admin")} className="text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded-none border border-red-400/40 text-xs tracking-wider">
-                <Shield className="w-3.5 h-3.5 mr-1.5" />[ADMIN]
-              </Button>
-            )}
+            <Button variant="ghost" size="sm" onClick={() => setLocation(user && isAdmin ? "/admin" : "/admin/login")} className="text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded-none border border-red-400/40 text-xs tracking-wider">
+              <Shield className="w-3.5 h-3.5 mr-1.5" />[ADMIN]
+            </Button>
           </div>
         </div>
       </nav>
