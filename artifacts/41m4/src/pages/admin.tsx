@@ -476,7 +476,7 @@ export default function Admin() {
             <DialogTitle className="text-destructive font-bold tracking-widest text-sm uppercase">Confirm Delete</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            Are you sure you want to delete payload <span className="text-primary font-mono">#{deleteId}</span>? This action cannot be undone.
+            Are you sure you want to delete payload? <span className="text-primary font-mono">#{deleteId}</span>? This action cannot be undone.
           </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)} className="rounded-none text-xs" disabled={deleting}>
