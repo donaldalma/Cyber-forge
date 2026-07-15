@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/auth-context";
 import { supabase } from "@/lib/supabase";
+import { apiFetch, API_BASE_URL } from "@/lib/api";
 
 const CATEGORIES = [
   "XSS", "SQLi", "CSRF", "LFI", "SSRF", "XXE", "RCE", "IDOR",
@@ -87,7 +88,7 @@ export default function Admin() {
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData.session?.access_token;
-      const res = await fetch(`/api/payloads?page=${p}&limit=${limit}`, {
+      const res = await apiFetch(`/api/payloads?page=${p}&limit=${limit}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!res.ok) throw new Error("Failed to fetch payloads");
@@ -157,7 +158,7 @@ export default function Admin() {
       const url = editingId ? `/api/payloads/${editingId}` : "/api/payloads";
       const method = editingId ? "PUT" : "POST";
 
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method,
         headers: {
           "Content-Type": "application/json",
@@ -188,7 +189,7 @@ export default function Admin() {
       const token = sessionData.session?.access_token;
       if (!token) throw new Error("Not authenticated");
 
-      const res = await fetch(`/api/payloads/${deleteId}`, {
+      const res = await apiFetch(`/api/payloads/${deleteId}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
