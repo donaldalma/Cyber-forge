@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
 import { ChevronRight, RotateCcw, Copy, Check, AlertTriangle, X, Menu } from "lucide-react";
 import { motion } from "framer-motion";
+import { apiUrl } from "@/lib/api";
 
 interface Payload {
   id: number;
@@ -24,7 +25,7 @@ interface Props {
 export function GenericLab({ title, code, targetUrl, payloads, injectionMode = "query", queryParam = "q", hint }: Props) {
   const [, setLocation] = useLocation();
   const [payloadInput, setPayloadInput] = useState("");
-  const [iframeUrl, setIframeUrl] = useState(targetUrl);
+  const [iframeUrl, setIframeUrl] = useState(apiUrl(targetUrl));
   const [iframeKey, setIframeKey] = useState(0);
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [mobilePayloadOpen, setMobilePayloadOpen] = useState(false);
@@ -33,9 +34,9 @@ export function GenericLab({ title, code, targetUrl, payloads, injectionMode = "
     setPayloadInput(payload);
     let url: string;
     if (injectionMode === "hash") {
-      url = `${targetUrl}#${encodeURIComponent(payload)}`;
+      url = `${apiUrl(targetUrl)}#${encodeURIComponent(payload)}`;
     } else {
-      url = `${targetUrl}?${queryParam}=${encodeURIComponent(payload)}`;
+      url = `${apiUrl(targetUrl)}?${queryParam}=${encodeURIComponent(payload)}`;
     }
     setIframeUrl(url);
     setIframeKey((k) => k + 1);
@@ -48,7 +49,7 @@ export function GenericLab({ title, code, targetUrl, payloads, injectionMode = "
   };
 
   const handleReset = () => {
-    setIframeUrl(targetUrl);
+    setIframeUrl(apiUrl(targetUrl));
     setIframeKey((k) => k + 1);
     setPayloadInput("");
   };

@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, payloadsTable } from "@workspace/db";
-import { eq, ilike, or, and, sql } from "drizzle-orm";
+import { eq, ilike, or, and, sql, desc } from "drizzle-orm";
 import { requireAdmin } from "../middleware/require-admin";
 
 const FALLBACK_PAYLOADS = [
@@ -140,7 +140,7 @@ router.get("/payloads", async (req, res): Promise<void> => {
       .select()
       .from(payloadsTable)
       .where(whereClause)
-      .orderBy(payloadsTable.id)
+      .orderBy(desc(payloadsTable.id))
       .limit(limit)
       .offset(offset);
 

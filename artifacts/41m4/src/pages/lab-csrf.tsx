@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { useLocation } from "wouter";
 import { ChevronRight, RotateCcw, Copy, Check, AlertTriangle } from "lucide-react";
 import { motion } from "framer-motion";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, apiUrl } from "@/lib/api";
 
 const CSRF_PAYLOADS = [
   {
@@ -85,7 +85,7 @@ export default function LabCsrf() {
             <span className="text-xs text-primary ml-1 font-bold">VICTIM</span>
             <span className="text-xs text-muted-foreground">/api/lab/csrf/bank</span>
           </div>
-          <iframe key={iframeKey} src="/api/lab/csrf/bank" className="h-1/2 w-full border-none bg-[#050505] border-b border-border" title="CSRF Victim" data-testid="victim-iframe" />
+          <iframe key={iframeKey} src={apiUrl("/api/lab/csrf/bank")} className="h-1/2 w-full border-none bg-[#050505] border-b border-border" title="CSRF Victim" data-testid="victim-iframe" />
 
           {/* Attacker Page */}
           <div className="bg-card/50 border-b border-border px-3 py-1.5 flex items-center gap-2 flex-shrink-0">
